@@ -3,6 +3,9 @@ name: aibank
 services:
   api:
     build: ./backend
+    env_file:
+      - path: .env
+        required: false
 
   nginx:
     image: nginx:1.27-alpine
