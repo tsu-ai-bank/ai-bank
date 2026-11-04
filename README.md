@@ -12,6 +12,38 @@ Python (FastAPI, Celery), React, PostgreSQL, Redis, DeepSeek API. Всё зап�
 - `frontend/` — сайт с каталогом задач и кабинет модератора
 - `deploy/` — конфиги nginx и скрипты для сервера
 
+### Структура бэкенда
+
+Как и в [Ylab_EXTask](https://github.com/iiqq2/Ylab_EXTask), точка входа,
+зависимости и тесты находятся рядом с каталогом исходного кода:
+
+```text
+backend/
+├── Dockerfile
+└── app/
+    ├── main.py              # создание FastAPI и подключение API
+    ├── requirements.txt     # зависимости приложения
+    ├── src/
+    │   ├── api/
+    │   │   ├── router.py    # общий роутер с префиксом /api
+    │   │   └── routers/     # обработчики эндпоинтов, включая health
+    │   ├── core/            # настройки и общая инфраструктура
+    │   ├── db/              # подключение к БД и миграции
+    │   ├── models/          # модели БД
+    │   ├── schemas/         # схемы Pydantic
+    │   ├── services/        # бизнес-логика, в том числе save_raw_documents
+    │   └── workers/         # фоновые задачи
+    └── tests/               # каталог для тестов (задача #7)
+```
+
+Импорты внутри приложения начинаются с `src`, например
+`from src.core.config import get_settings`. Команды локального запуска
+выполняются из `backend/app`.
+
+Парсеры из задачи #10 добавляются в `backend/app/parsers/`. Они вызывают
+`save_raw_documents` из `src/services/`; модели и доступ к БД находятся
+в `src/models/` и `src/db/` соответственно.
+
 ## Как работаем с git
 
 - `main` — то, что крутится на сервере.
@@ -45,6 +77,41 @@ Python (FastAPI, Celery), React, PostgreSQL, Redis, DeepSeek API. Всё зап�
 1. Скопировать `.env.example` в `.env` и заполнить.
 2. Запустить `docker compose up --build`.
 3. Открыть http://localhost:8080.
+
+Проверка API:
+
+```bash
+curl http://localhost:8080/api/health
+```
+
+Ожидаемый ответ: `{"status":"ok"}`.
+
+Compose передаёт переменные из корневого `.env` в контейнер API. Пока
+внешние сервисы не подключены, API запускается и без этого файла.
+Настройки описаны в `backend/app/src/core/config.py`, переменные
+перечислены в `.env.example`.
+Переменные читаются через `os.environ` и проверяются обычным Pydantic,
+который устанавливается вместе с FastAPI. При локальном запуске `.env`
+загружает Uvicorn через параметр `--env-file`.
+Новые переменные добавляем туда же. Ключи и пароли храним только в `.env`.
+
+### Без Docker, через uv
+
+Из корня репозитория:
+
+```bash
+uv python install 3.12
+uv venv --python 3.12 backend/.venv
+uv pip install --python backend/.venv/bin/python -r backend/app/requirements.txt
+source backend/.venv/bin/activate
+cd backend/app
+uvicorn main:app --reload --env-file ../../.env
+```
+
+Перед запуском скопируйте `.env.example` в `.env`. Для запуска с настройками
+по умолчанию можно опустить `--env-file ../../.env`.
+API доступен по адресу http://localhost:8000/api/health,
+Swagger UI — http://localhost:8000/docs.
 
 ## Команда
 
