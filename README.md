@@ -23,6 +23,8 @@ backend/
 └── app/
     ├── main.py              # создание FastAPI и подключение API
     ├── requirements.txt     # зависимости приложения
+    ├── requirements-dev.txt # зависимости приложения и инструменты разработки
+    ├── pyproject.toml       # настройки pytest и Ruff
     ├── src/
     │   ├── api/
     │   │   ├── router.py    # общий роутер с префиксом /api
@@ -33,7 +35,7 @@ backend/
     │   ├── schemas/         # схемы Pydantic
     │   ├── services/        # бизнес-логика, в том числе save_raw_documents
     │   └── workers/         # фоновые задачи
-    └── tests/               # каталог для тестов (задача #7)
+    └── tests/               # фикстуры и тесты API
 ```
 
 Импорты внутри приложения начинаются с `src`, например
@@ -112,6 +114,41 @@ uvicorn main:app --reload --env-file ../../.env
 по умолчанию можно опустить `--env-file ../../.env`.
 API доступен по адресу http://localhost:8000/api/health,
 Swagger UI — http://localhost:8000/docs.
+
+### Тесты и линтер
+
+Установите зависимости разработки в созданное окружение. Из корня
+репозитория:
+
+```bash
+uv pip install --python backend/.venv/bin/python -r backend/app/requirements-dev.txt
+source backend/.venv/bin/activate
+cd backend/app
+```
+
+Запуск тестов и проверок кода:
+
+```bash
+pytest
+ruff check .
+ruff format --check .
+```
+
+Настройки находятся в `backend/app/pyproject.toml`. Тесты используют
+FastAPI TestClient и проверяют реальный маршрут `/api/health`: статус
+`200` и JSON `{"status": "ok"}`. Для них не нужны `.env`, запущенный API,
+PostgreSQL или Redis.
+
+Ruff проверяет ошибки Python, стиль, порядок импортов и совместимость
+с Python 3.12. Исправление поддерживаемых замечаний и форматирование:
+
+```bash
+ruff check . --fix
+ruff format .
+```
+
+В рабочем Docker-образе устанавливается только `requirements.txt`.
+`requirements-dev.txt` включает его и добавляет pytest, Ruff и HTTPX.
 
 ## Команда
 
