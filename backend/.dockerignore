@@ -4,6 +4,8 @@
 **/*.py[cod]
 **/.pytest_cache/
 **/.ruff_cache/
+**/celerybeat-schedule*
+**/celerybeat.pid
 **/.env
 **/.env.*
 !**/.env.example

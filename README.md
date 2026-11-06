@@ -116,6 +116,55 @@ uvicorn main:app --reload --env-file ../../.env
 API доступен по адресу http://localhost:8000/api/health,
 Swagger UI — http://localhost:8000/docs.
 
+### Celery и Redis
+
+Celery использует `REDIS_URL` из `.env` для очереди задач и хранения
+результатов. Переменная уже есть в `.env.example`. Сервис Redis в основной
+Compose добавляется отдельно в задаче #18. Для запуска команд ниже нужен
+доступный Redis.
+
+При запуске Python на компьютере, если Redis доступен на локальном порту
+6379, задайте в своём `.env` значение `REDIS_URL=redis://localhost:6379/0`.
+Значение `redis://redis:6379/0` из `.env.example` предназначено для
+контейнеров в одной сети Compose с сервисом `redis`.
+
+После установки зависимостей активируйте `backend/.venv` и перейдите в
+`backend/app`, как описано выше. В каждом из терминалов загрузите `.env`:
+
+```bash
+set -a
+source ../../.env
+set +a
+```
+
+В первом терминале запустите воркер (параметр `--pool=solo` подходит для
+локальной проверки, в том числе на macOS):
+
+```bash
+celery -A src.workers.celery_app:celery_app worker --loglevel=info --pool=solo
+```
+
+Во втором терминале отправьте задачу и дождитесь результата:
+
+```bash
+python -c 'from src.workers.tasks import ping; result = ping.delay(); print(result.id); print(result.get(timeout=15))'
+```
+
+Ожидаемый результат — `pong`. В логе воркера задача `workers.ping` должна
+перейти в состояние `succeeded`.
+
+В отдельном терминале можно запустить планировщик:
+
+```bash
+celery -A src.workers.celery_app:celery_app beat --loglevel=info
+```
+
+Заготовка расписания находится в `src/workers/schedule.py`: пока Beat
+отправляет `workers.ping` раз в минуту. Здесь же будут добавляться задачи
+парсеров. Воркер выполняет задачи, а Beat только ставит их в очередь;
+запускайте один экземпляр Beat для этого расписания. Время расписания — UTC.
+При запуске без `REDIS_URL` воркер и Beat завершаются с понятной ошибкой;
+API при этом продолжает запускаться без Redis.
 ### Тесты и линтер
 
 Установите зависимости разработки в созданное окружение. Из корня
