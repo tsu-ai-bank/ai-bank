@@ -10,3 +10,7 @@
 **/.env.*
 !**/.env.example
 .DS_Store
+# тесты и dev-инструменты в боевой образ не нужны
+app/tests/
+app/pyproject.toml
+app/requirements-dev.txt
