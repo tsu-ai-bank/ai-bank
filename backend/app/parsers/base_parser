@@ -1,0 +1,502 @@
+import inspect
+import logging
+import random
+import re
+import threading
+import time
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
+from typing import Optional
+from urllib.parse import urljoin, urlparse
+from urllib.robotparser import RobotFileParser
+
+import requests
+
+__all__ = ["BaseParser", "RobotsDisallowedError"]
+
+logger = logging.getLogger(__name__)
+
+
+class RobotsDisallowedError(Exception):
+    """robots.txt запрещает запрос этого URL для нашего User-Agent."""
+
+
+class BaseParser:
+    USER_AGENT = "MyOrgBot/1.0 (+https://example.org/bot; bot@example.org)"
+    TIMEOUT = (5, 20)          # (соединение, чтение) секунды
+    REQUEST_DELAY = 1.0        # минимальная пауза между запросами к одному хосту, секунды
+    DELAY_JITTER = 0.3         # случайная добавка, чтобы запросы не шли с одинаковыми промежутками
+    RESPECT_ROBOTS = True
+
+    MAX_REDIRECTS = 5
+    RETRY_ATTEMPTS = 3                              # всего попыток на один URL
+    RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+    RETRY_BACKOFF = 2.0                             # базовое время ожидания между попытками
+    MAX_RETRY_WAIT = 60.0                           # если Retry-After больше — сдаёмся
+    ROBOTS_TTL = 24 * 3600                          # обычное время жизни robots.txt
+    ROBOTS_ERROR_TTL = 5 * 60                       # 5xx / сетевая ошибка: повторить скоро
+
+    MAX_AGE_DAYS = 60          
+
+    EMAIL_MASK = "[EMAIL]"
+    PHONE_MASK = "[PHONE]"
+
+
+    _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u00ad\u200b-\u200f\u2060\ufeff\ufffd]")
+    _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.UNICODE)
+    _EMAIL_OBFUSCATED_RE = re.compile(
+        r"[\w.+-]+\s*[\[(]\s*(?:at|собака)\s*[\])]\s*"
+        r"[\w-]+(?:\s*(?:\.|[\[(]\s*(?:dot|точка)\s*[\])])\s*[\w-]+)+",
+        re.I,
+    )
+    _PHONE_RE = re.compile(
+        r"(?<![\w.])(?:\+|00)?\d(?:(?:[ \t\u00a0()-]|\.(?=\d)){0,2}\d){6,}(?!\w)"
+    )
+    _LOCAL_PHONE_RE = re.compile(
+        r"(?<![\w.,-])(?<!\d )\d{3}[- ]\d{2}[- ]\d{2}(?![\w-]|[.,]\d| \d)"
+    )
+    _DATE_INSIDE_RE = re.compile(
+        r"(?<!\d)(?:\d{4}[-.]\d{2}[-.]\d{2}|\d{2}[-.]\d{2}[-.]\d{4})(?!\d)"
+    )
+    _ID_CONTEXT_RE = re.compile(
+        r"(?:инн|огрнип|огрн|кпп|окпо|окато|октмо|бик)[^0-9]{0,6}$", re.I
+    )
+    _BARE_PHONE_RE = re.compile(r"^(?:[78]\d{10}|9\d{9}|00\d{10,13})$")
+    _RU_MONTHS = {
+        "января": 1, "февраля": 2, "марта": 3, "апреля": 4, "мая": 5, "июня": 6,
+        "июля": 7, "августа": 8, "сентября": 9, "октября": 10, "ноября": 11,
+        "декабря": 12,
+    }
+    _RU_DATE_RE = re.compile(
+        r"(\d{1,2})\s+(" + "|".join(_RU_MONTHS) + r")\s+(\d{4})(?:\D+(\d{1,2}):(\d{2}))?",
+        re.I,
+    )
+
+    _lock = threading.Lock()
+    _last_request: dict[str, float] = {}
+    _robots_cache: dict[str, tuple[RobotFileParser, Optional[float], float]] = {}
+
+    title: Optional[str]                   
+    description: Optional[str]             
+    publication_date: Optional[datetime]    
+    text: str                               
+
+
+    def __init__(
+        self,
+        url: str,
+        organization: str,
+        *,
+        user_agent: Optional[str] = None,
+        timeout=None,
+        delay: Optional[float] = None,
+        respect_robots: Optional[bool] = None,
+        session: Optional[requests.Session] = None,
+    ):
+        self._url = url
+        self._organization = organization
+        self.user_agent = user_agent or self.USER_AGENT
+        self.timeout = timeout or self.TIMEOUT
+        self.delay = self.REQUEST_DELAY if delay is None else delay
+        self.respect_robots = (
+            self.RESPECT_ROBOTS if respect_robots is None else respect_robots
+        )
+
+        self._session = session or requests.Session()
+        self._session.headers["User-Agent"] = self.user_agent  # setdefault оставил бы "python-requests"
+        self.text = ""
+
+    @property
+    def organization(self) -> str:
+        return self._organization
+
+    @property
+    def url(self) -> str:
+        return self._url
+
+    @property
+    def domain(self) -> str:
+        return (urlparse(self._url).hostname or "").lower()
+
+    def close(self) -> None:
+        self._session.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    @classmethod
+    def defines(cls, func):
+        name = func.__name__
+        declared = cls.__dict__.get(name)
+        if not callable(declared):
+            raise AttributeError(f"{cls.__name__}.{name} is not declared in the class body")
+
+        def shape(f):
+            return [(p.name, p.kind, p.default) for p in inspect.signature(f).parameters.values()]
+
+        if shape(declared) != shape(func):
+            raise TypeError(f"{cls.__name__}.{name}: the definition does not match its declaration")
+        func.__qualname__ = f"{cls.__qualname__}.{name}"
+        func.__doc__ = declared.__doc__
+        setattr(cls, name, func)
+        return func
+
+   
+    def collect(self) -> str:
+        """Сбор текста. Вызывать extract_metadata(). Только через self.fetch()."""
+        raise NotImplementedError("collect() must be defined by the child class")
+
+    def extract_metadata(self, payload) -> None:
+        """Заполнить self.title, self.description, self.publication_date до очистки от HTML."""
+        raise NotImplementedError("extract_metadata() must be defined by the child class")
+
+    def fix_encoding(self, resp) -> None:
+        """Определить кодировку, если она не указана."""
+        raise NotImplementedError
+
+    def parse_retry_after(self, value) -> Optional[float]:
+        """Сколько секунд ждать перед повтором."""
+        raise NotImplementedError
+
+    def _robots_for(self, url: str) -> tuple[RobotFileParser, Optional[float]]:
+        """Разобрать robots.txt по URL с кэшем (TTL: сутки, при ошибке — 5 минут).
+        Если получить не удалось — запрещаем всё."""
+        raise NotImplementedError
+
+    def can_fetch(self, url: Optional[str] = None) -> bool:
+        """Разрешён ли URL для User-Agent?"""
+        raise NotImplementedError
+
+    def _wait_for_slot(self, url: str, crawl_delay: Optional[float]) -> None:
+        """Выдержать паузу не меньше `delay` между запросами к одному хосту."""
+        raise NotImplementedError
+
+    def _retry_wait(self, attempt: int, resp=None) -> Optional[float]:
+        """Секунды до следующей попытки; None — не повторять."""
+        raise NotImplementedError
+
+    def _get_once(self, url: str, **kwargs) -> requests.Response:
+        """Один запрос без редиректов: robots.txt, паузы, повторы при сетевых ошибках и 429/5xx."""
+        raise NotImplementedError
+
+    def fetch(self, url: Optional[str] = None, **kwargs) -> requests.Response:
+        """GET с robots.txt, ограничением частоты, User-Agent, таймаутами, повторами и редиректами
+        (robots.txt и пауза — на каждом шаге). Креды — только через kwargs (`headers=`, `params=`),
+        не в URL; при редиректе на другой хост не передаются."""
+        raise NotImplementedError
+
+    def remove_control_chars(self, text: str) -> str:
+        """Убрать control/zero-width/soft-hyphen; NBSP -> пробел."""
+        raise NotImplementedError
+
+    def _mask_phone(self, m) -> str:
+        """Решить по одному совпадению: маскировать или оставить (даты, ИНН/ОГРН, метки времени, номера заказов остаются)."""
+        raise NotImplementedError
+
+    def mask_personal_data(self, text: str) -> str:
+        """E-mail (в т.ч. 'a [at] b [dot] ru') -> [EMAIL], телефоны -> [PHONE]."""
+        raise NotImplementedError
+
+    def clean_text(self, text: Optional[str]) -> str:
+        """Базовый фильтр перед сохранением: control-символы, маска ПД, пробелы -> одиночные."""
+        raise NotImplementedError
+
+    def clean_field(self, value: Optional[str]) -> Optional[str]:
+        """clean_text для коротких полей (title, description); None, если пусто."""
+        raise NotImplementedError
+
+    def parse_date(self, value) -> Optional[datetime]:
+        """Строка -> datetime с таймзоной или None.
+
+        Понимает ISO 8601, RFC 2822, dd.mm.yyyy и «8 ноября 2026 12:30».
+        Без таймзоны — считаем UTC; будущее и даты до 1990 отбрасываются."""
+        raise NotImplementedError
+
+    def is_recent(self, published: Optional[datetime], max_age_days: int) -> bool:
+        """Не старше max_age_days. Нет даты -> True."""
+        raise NotImplementedError
+
+    def is_fresh(self, max_age_days: Optional[int] = None) -> bool:
+        """Документ не старше MAX_AGE_DAYS (60) или max_age_days. Нет даты -> True."""
+        raise NotImplementedError
+
+    def run(self) -> str:
+        """collect -> фильтр. Фильтр здесь, чтобы потомок не забыл: text, title, description."""
+        raise NotImplementedError
+
+    def to_dict(self) -> dict:
+        """7 полей для следующего этапа: organization, url, domain, title, description, publication_date, text."""
+        raise NotImplementedError
+
+    def save(self, documents: Optional[list[dict]] = None) -> None:
+        """Отдать документы дальше через save_raw_documents.
+        Без аргумента — свой документ; для списка — результат extract_records() потомка.
+
+        ПРИМЕЧАНИЕ: подставить реальные импорт и сигнатуру."""
+        raise NotImplementedError
+
+@BaseParser.defines
+def fix_encoding(self, resp):
+    content_type = resp.headers.get("Content-Type", "").lower()
+    if (resp.encoding or "").lower() == "iso-8859-1" and "charset" not in content_type:
+        resp.encoding = resp.apparent_encoding
+
+
+@BaseParser.defines
+def parse_retry_after(self, value):
+    if not value:
+        return None
+    value = value.strip()
+    if value.isdigit():                       
+        return float(value)
+    try:                                       
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:                     # например, "-0000": считаем UTC
+        when = when.replace(tzinfo=timezone.utc)
+    return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
+
+
+@BaseParser.defines
+def _robots_for(self, url):
+    parts = urlparse(url)
+    origin = f"{parts.scheme}://{parts.netloc}"
+    key = f"{origin}|{self.user_agent}"         
+
+    with self._lock:
+        cached = self._robots_cache.get(key)
+    if cached and cached[2] > time.monotonic():
+        return cached[0], cached[1]
+
+    rp = RobotFileParser()
+    robots_url = f"{origin}/robots.txt"
+    ttl = self.ROBOTS_TTL
+    try:
+        resp = self._session.get(robots_url, timeout=self.timeout)
+        if resp.status_code == 200:
+            self.fix_encoding(resp)
+            rp.parse(resp.text.splitlines())
+        elif resp.status_code in (401, 403):
+            rp.disallow_all = True
+        elif 400 <= resp.status_code < 500:
+            rp.allow_all = True                  
+        else:
+            rp.disallow_all = True              
+            ttl = self.ROBOTS_ERROR_TTL          
+    except requests.RequestException as exc:
+        logger.warning("robots.txt unavailable for %s: %s", origin, exc)
+        rp.disallow_all = True                 
+        ttl = self.ROBOTS_ERROR_TTL
+
+    crawl_delay = rp.crawl_delay(self.user_agent)
+    crawl_delay = float(crawl_delay) if crawl_delay else None
+    with self._lock:
+        self._robots_cache[key] = (rp, crawl_delay, time.monotonic() + ttl)
+    return rp, crawl_delay
+
+
+@BaseParser.defines
+def can_fetch(self, url=None):
+    url = url or self._url
+    if not self.respect_robots:
+        return True
+    rp, _ = self._robots_for(url)
+    return rp.can_fetch(self.user_agent, url)
+
+
+@BaseParser.defines
+def _wait_for_slot(self, url, crawl_delay):
+    host = urlparse(url).netloc.lower()
+    pause = max(self.delay, crawl_delay or 0.0)
+    while True:
+        with self._lock:
+            now = time.monotonic()
+            wait = self._last_request.get(host, 0.0) + pause - now
+            if wait <= 0:
+                self._last_request[host] = now 
+                break
+        time.sleep(wait + random.uniform(0, self.DELAY_JITTER))   
+
+@BaseParser.defines
+def _retry_wait(self, attempt, resp=None):
+    wait = self.parse_retry_after(resp.headers.get("Retry-After")) if resp is not None else None
+    if wait is None:
+        wait = self.RETRY_BACKOFF * 2 ** (attempt - 1) + random.uniform(0, 1)
+    return None if wait > self.MAX_RETRY_WAIT else wait
+
+@BaseParser.defines
+def _get_once(self, url, **kwargs):
+    crawl_delay = None
+    if self.respect_robots:
+        rp, crawl_delay = self._robots_for(url)
+        if not rp.can_fetch(self.user_agent, url):
+            raise RobotsDisallowedError(f"robots.txt disallows {url}")
+
+    for attempt in range(1, self.RETRY_ATTEMPTS + 1):
+        self._wait_for_slot(url, crawl_delay)    # каждая попытка выдерживает паузу
+        last = attempt == self.RETRY_ATTEMPTS
+        try:
+            resp = self._session.get(url, allow_redirects=False, **kwargs)
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            wait = None if last else self._retry_wait(attempt)
+            if wait is None:
+                raise
+            logger.warning("%s: %s; retry in %.1fs", url, exc, wait)
+            time.sleep(wait)
+            continue
+
+        if resp.status_code in self.RETRY_STATUSES and not last:
+            wait = self._retry_wait(attempt, resp)
+            if wait is not None:
+                logger.warning("%s: HTTP %s; retry in %.1fs", url, resp.status_code, wait)
+                resp.close()
+                time.sleep(wait)
+                continue
+        return resp      #фатальная ошибка или попытки кончились
+
+    raise RuntimeError("unreachable")           
+@BaseParser.defines
+def fetch(self, url=None, **kwargs):
+    url = url or self._url
+    kwargs.setdefault("timeout", self.timeout)
+    kwargs.pop("allow_redirects", None)          # редиректы обрабатываем сами
+    first_host = urlparse(url).netloc.lower()
+
+    for _ in range(self.MAX_REDIRECTS + 1):
+        resp = self._get_once(url, **kwargs)
+        if not resp.is_redirect:
+            resp.raise_for_status()
+            self.fix_encoding(resp)
+            return resp
+
+        resp.close()
+        url = urljoin(url, resp.headers["Location"])
+        if urlparse(url).scheme not in ("http", "https"):
+            raise requests.InvalidURL(f"redirect to unsupported URL: {url}")
+        kwargs.pop("params", None)              
+        if urlparse(url).netloc.lower() != first_host:
+            for name in ("headers", "auth", "cookies"):   #ключи не передаются
+                kwargs.pop(name, None)
+
+    raise requests.TooManyRedirects(f"more than {self.MAX_REDIRECTS} redirects")
+
+@BaseParser.defines   
+def remove_control_chars(self, text):
+    return self._CONTROL_RE.sub("", text).replace("\u00a0", " ")
+
+@BaseParser.defines
+def _mask_phone(self, m):
+    raw = m.group(0)
+    digits = re.sub(r"\D", "", raw)
+    if not 10 <= len(digits) <= 15 or self._DATE_INSIDE_RE.search(raw):
+        return raw
+    before = m.string[max(0, m.start() - 15):m.start()]
+    if self._ID_CONTEXT_RE.search(before):
+        return raw
+    if raw.isdigit() and not self._BARE_PHONE_RE.match(digits):
+        return raw
+    return self.PHONE_MASK
+
+@BaseParser.defines
+def mask_personal_data(self, text):
+    text = self._EMAIL_OBFUSCATED_RE.sub(self.EMAIL_MASK, text)
+    text = self._EMAIL_RE.sub(self.EMAIL_MASK, text)
+    text = self._PHONE_RE.sub(self._mask_phone, text)
+    return self._LOCAL_PHONE_RE.sub(self.PHONE_MASK, text)
+
+@BaseParser.defines
+def clean_text(self, text):
+    if not text:
+        return ""
+    text = self.remove_control_chars(text)
+    text = self.mask_personal_data(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+@BaseParser.defines
+def clean_field(self, value):
+    return self.clean_text(value) or None
+
+@BaseParser.defines
+def parse_date(self, value):
+    if not value:
+        return None
+    value = " ".join(str(value).split())
+    dt = None
+    try:                                                        # ISO 8601
+        dt = datetime.fromisoformat(re.sub(r"Z$", "+00:00", value))
+    except ValueError:
+        pass
+    if dt is None:                                              # RFC 2822
+        try:
+            dt = parsedate_to_datetime(value)
+        except (TypeError, ValueError, IndexError):
+            pass
+    if dt is None:                                              # "8 ноября 2026 12:30"
+        m = self._RU_DATE_RE.search(value)
+        if m:
+            try:
+                dt = datetime(
+                    int(m.group(3)), self._RU_MONTHS[m.group(2).lower()],
+                    int(m.group(1)), int(m.group(4) or 0), int(m.group(5) or 0),
+                )
+            except ValueError:
+                dt = None
+    if dt is None:                                              # прочие частые форматы
+        for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%d.%m.%Y %H:%M", "%d.%m.%Y", "%d/%m/%Y"):
+            try:
+                dt = datetime.strptime(value, fmt)
+                break
+            except ValueError:
+                continue
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    if dt > datetime.now(timezone.utc) + timedelta(days=1) or dt.year < 1990:
+        return None
+    return dt
+
+@BaseParser.defines
+def is_recent(self, published, max_age_days):
+    if published is None:
+        return True
+    if published.tzinfo is None:
+        published = published.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - published <= timedelta(days=max_age_days)
+
+@BaseParser.defines
+def is_fresh(self, max_age_days=None):
+    limit = self.MAX_AGE_DAYS if max_age_days is None else max_age_days
+    return self.is_recent(getattr(self, "publication_date", None), limit)
+
+@BaseParser.defines
+def run(self):
+    self.text = self.clean_text(self.collect())
+    self.title = self.clean_field(getattr(self, "title", None))
+    self.description = self.clean_field(getattr(self, "description", None))
+    self.publication_date = getattr(self, "publication_date", None)
+    return self.text
+
+
+@BaseParser.defines
+def to_dict(self):
+    return {
+        "organization": self.organization,
+        "url": self.url,
+        "domain": self.domain,
+        "title": getattr(self, "title", None),
+        "description": getattr(self, "description", None),
+        "publication_date": getattr(self, "publication_date", None),
+        "text": self.text,
+    }
+
+
+@BaseParser.defines
+def save(self, documents=None):
+    from storage import save_raw_documents  # TODO: реальный путь модуля
+
+    save_raw_documents(documents if documents is not None else [self.to_dict()])
