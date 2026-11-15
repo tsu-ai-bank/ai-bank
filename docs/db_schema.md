@@ -1,9 +1,9 @@
-# Схема базы данных 
+# Схема базы данных
 
 ## Обозначения
  `PK` — первичный ключ, `FK` — внешний ключ, `UNIQUE` — уникальное значение, `NOT NULL` — обязательное поле, `NULL` — поле может отсутствовать.
 
-##  Таблицы
+## Таблицы
 
 ### `faculties` — факультеты
 
@@ -15,7 +15,7 @@
 
 Факультет связан со своими компетенциями, модераторами и учебными паспортами. Привязка нужна для последующего подключения других факультетов.
 
-###  `sources` — источники
+### `sources` — источники
 
 | Поле | Тип | Ограничения | Назначение |
 |---|---|---|---|
@@ -25,7 +25,7 @@
 
 Домен сохраняется в нижнем регистре, без протокола и пути. 
 
-###  `organizations` — организации
+### `organizations` — организации
 
 | Поле | Тип | Ограничения | Назначение |
 |---|---|---|---|
@@ -34,7 +34,7 @@
 | `normalized_name` | `VARCHAR(255)` | NOT NULL, INDEX | Название в нормализованном виде для поиска совпадений |
 | `inn` | `VARCHAR(12)` | NULL, UNIQUE | ИНН, если он известен |
 
-Одна организация может упоминаться в нескольких документах. `normalized_name` не уникален: одинаковые названия не всегда означают одну компанию. Можно попробовать сопоставлять по ИНН при наличии у организации
+Одна организация может упоминаться в нескольких документах. `normalized_name` не уникален. Можно попробовать сопоставлять по ИНН при наличии у организации
 
 ### `raw_documents` — сырые документы
 
@@ -61,14 +61,6 @@
 | `GENERATED` | Сгенерирован учебный паспорт |
 | `APPROVED` | Учебный проект прошёл проверку модератора |
 
-Ограничения:
-
-- `UNIQUE (url)` — один URL не должен сохраняться повторно.
-- Индекс `idx_raw_documents_published_at` по полю `published_at`.
-- Индексы по `source_id` и `organization_id` для выборки связанных документов.
-- Допустимые статусы ограничиваются `CHECK` или PostgreSQL `ENUM`.
-- При повторном сборе документа его статус не меняется обратно на `RAW`.
-
 `published_at` может отсутствовать. `collected_at` заполняется при сохранении документа. 
 
 ### `faculty_competencies` — компетенции факультетов
@@ -83,9 +75,9 @@
 
 Ограничение: `UNIQUE (faculty_id, code)`.
 
-Для анализа текста AI-модуль будет получать компетенции факультета из этой таблицы.
+AI-модуль будет получать компетенции факультета из этой таблицы.
 
-###  `project_passports` — учебные паспорта
+### `project_passports` — учебные паспорта
 
 | Поле | Тип | Ограничения | Назначение |
 |---|---|---|---|
@@ -109,12 +101,12 @@
 4. Рекомендуемый курс и обоснование.
 5. Технологический стек: no-code и web-сценарии.
 6. Бизнес-ценность.
-7. Вопросы для CustDev.
+7. Вопросы для Dev.
 
 
-Предлагаемые значения `moderation_status`: `PENDING`, `APPROVED`, `REJECTED`. Они относятся к конкретному паспорту и не заменяют статусы исходного документа.
+Предполагаемые значения `moderation_status`: `PENDING`, `APPROVED`, `REJECTED`. 
 
-### 2.7. `moderators` — модераторы
+### `moderators` — модераторы
 
 | Поле | Тип | Ограничения | Назначение |
 |---|---|---|---|
@@ -126,33 +118,53 @@
 | `is_active` | `BOOLEAN` | NOT NULL, DEFAULT `TRUE` | Активность учётной записи |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT `now()` | Дата создания |
 
-Авторизация выполняется в самом сервисе. В базе хранится только `password_hash`, а не исходный пароль.
+Авторизация выполняется в самом сервисе. В базе хранится только `password_hash` - то есть хэш-пароля, а не исходный пароль.
 
-## 3. Связи между таблицами
+## Связи между таблицами
 
-| Таблица | Связанная таблица | Тип связи | Внешний ключ |
-|---|---|---|---|
-| `faculties` | `faculty_competencies` | 1:N | `faculty_competencies.faculty_id` |
-| `faculties` | `moderators` | 1:N | `moderators.faculty_id` |
-| `faculties` | `project_passports` | 1:N | `project_passports.faculty_id` |
-| `sources` | `raw_documents` | 1:N | `raw_documents.source_id` |
-| `organizations` | `raw_documents` | 1:N | `raw_documents.organization_id` |
-| `raw_documents` | `project_passports` | 1:N | `project_passports.raw_document_id` |
-| `moderators` | `project_passports` | 1:N | `project_passports.moderated_by_id` |
+Для каждой связи указано минимальное и максимальное количество связанных записей с обеих сторон.
 
-```mermaid
-erDiagram
-    faculties ||--o{ faculty_competencies : has
-    faculties ||--o{ moderators : has
-    faculties ||--o{ project_passports : has
-    sources ||--o{ raw_documents : contains
-    organizations o|--o{ raw_documents : mentioned_in
-    raw_documents ||--o{ project_passports : produces
-    moderators o|--o{ project_passports : reviews
-```
+- `0..N` — запись может не иметь связанных записей либо иметь несколько.
+- `1..1` — у записи должна быть ровно одна связанная запись.
+- `0..1` — связанная запись может отсутствовать, но их не может быть больше одной.
+
+Связи `1:N` реализуются внешним ключом в таблице на стороне `N`. Если связь обязательна для дочерней записи, внешний ключ имеет ограничение `NOT NULL`. Если связь необязательная, допускается `NULL`. Для связей `M:N` применяется промежуточная таблица с внешними ключами на обе связанные сущности.
+
+###  Список связей
+![ER-схема базы данных в нотации Баркера](db_schema.svg)
+
+| Родительская таблица | Дочерняя таблица | Дочерних записей у одной родительской | Родительских записей у одной дочерней | Внешний ключ | Обязательность FK |
+|---|---|---|---|---|---|
+| `faculties` | `faculty_competencies` | `0..N` | `1..1` | `faculty_competencies.faculty_id` → `faculties.id` | `NOT NULL` |
+| `faculties` | `moderators` | `0..N` | `1..1` | `moderators.faculty_id` → `faculties.id` | `NOT NULL` |
+| `faculties` | `project_passports` | `0..N` | `1..1` | `project_passports.faculty_id` → `faculties.id` | `NOT NULL` |
+| `sources` | `raw_documents` | `0..N` | `1..1` | `raw_documents.source_id` → `sources.id` | `NOT NULL` |
+| `organizations` | `raw_documents` | `0..N` | `0..1` | `raw_documents.organization_id` → `organizations.id` | `NULL` разрешён |
+| `raw_documents` | `project_passports` | `0..N` | `1..1` | `project_passports.raw_document_id` → `raw_documents.id` | `NOT NULL` |
+| `moderators` | `project_passports` | `0..N` | `0..1` | `project_passports.moderated_by_id` → `moderators.id` | `NULL` разрешён |
 
 
-## 4. Сохранение документов
+### Связь факультетов с документами
+
+Один документ может использоваться несколькими факультетами, и один факультет может создавать учебные паспорта по нескольким документам. На уровне предметной области это связь `M:N` между `faculties` и `raw_documents` **для тех пар, по которым создан паспорт**.
+
+В схеме эта связь представлена таблицей `project_passports`:
+
+- `project_passports.faculty_id` → `faculties.id`;
+- `project_passports.raw_document_id` → `raw_documents.id`.
+
+`project_passports` также хранит данные проекта, поэтому является самостоятельной сущностью, а не только таблицей для соединения двух ключей. Отдельную таблицу связи для этих же паспортов добавлять не нужно.
+
+**ограничение:** `UNIQUE (raw_document_id, faculty_id)`, если для одной пары «документ — факультет» должен существовать только один актуальный паспорт. 
+
+### Ограничения между связанными таблицами
+
+1. `raw_documents.source_id`, `project_passports.raw_document_id`, `project_passports.faculty_id`, `faculty_competencies.faculty_id` и `moderators.faculty_id` не допускают `NULL`.
+2. `raw_documents.organization_id` и `project_passports.moderated_by_id` допускают `NULL`.
+3. `faculty_competencies` имеет уникальную пару `(faculty_id, code)`; одна и та же компетенция с одинаковым кодом не повторяется в пределах факультета.
+4.Модератор проверяет паспорта только своего факультета или нескольких факультетов..
+
+## Сохранение документов
 
 Парсер передаёт название организации, URL, заголовок, описание, дату публикации, домен и текст. Backend проверяет URL, затем находит или создаёт источник и организацию и сохраняет новый документ со статусом `RAW`.
 
