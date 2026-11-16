@@ -173,6 +173,69 @@ celery -A src.workers.celery_app:celery_app beat --loglevel=info
 При запуске без `REDIS_URL` воркер и Beat завершаются с понятной ошибкой;
 API при этом продолжает запускаться без Redis.
 
+### DeepSeek и учебный паспорт
+
+Клиент находится в `backend/app/src/services/deepseek.py`, генерация и
+проверка паспорта — в `src/services/passport_generation.py`. Ключ задаётся
+только через `DEEPSEEK_API_KEY` в окружении или локальном `.env`.
+Для скриптов загрузите `.env` в окружение, как описано для Celery выше.
+Промпты находятся в `src/core/prompts.py`, общие константы — рядом,
+в `src/core/constants.py`.
+
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | Базовый адрес API |
+| `DEEPSEEK_MODEL` | `deepseek-flash` | Модель генерации |
+| `DEEPSEEK_TIMEOUT_SECONDS` | `30` | Таймаут сетевых операций HTTPX, в секундах |
+| `DEEPSEEK_MAX_RETRIES` | `3` | Повторы после первого запроса, от 0 до 10 |
+| `DEEPSEEK_REQUESTS_PER_MINUTE` | `30` | Частота начала запросов одного клиента |
+| `DEEPSEEK_RETRY_BASE_SECONDS` | `1` | Начальная задержка повторов, в секундах |
+
+Клиент использует Chat Completions и JSON Output по
+[документации DeepSeek](https://api-docs.deepseek.com/guides/json_mode/).
+HTTPX теперь входит в основные зависимости, поскольку используется и
+клиентом API, и тестами. Дополнительный SDK не требуется.
+
+Пример вызова внутри асинхронного кода:
+
+```python
+from src.schemas.passport_generation import PassportSource
+from src.services.deepseek import DeepSeekClient
+from src.services.passport_generation import PassportGenerator
+
+# source заполняется исходным текстом документа и компетенциями
+# его факультета из БД; компетенции не зашиты в промпт.
+async def generate_passport(source: PassportSource):
+    async with DeepSeekClient() as client:
+        return await PassportGenerator(client).generate(source)
+```
+
+`PassportSource` содержит `document_id`, `faculty_id`, `text` и
+`competencies`. Схема `ProjectPassport` требует все семь разделов:
+`backlog` (четыре спринта), `roles`, `effort`, `course_routing` (курсы 1–4),
+`stack` (no-code и web), `business_value`, `custdev_guide`.
+Пустые обязательные поля, неверные типы и лишние поля отклоняются.
+
+При успехе возвращается `PassportGenerationResult` со статусом `GENERATED`
+и проверенным паспортом. Невалидный JSON, пустой или обрезанный ответ,
+ошибки схемы и исчерпанные сетевые повторы дают результат `ERROR` с
+описанием ошибки. Исходный документ и компетенции остаются в `result.source`;
+его можно передать в `generate` повторно. `result.model_dump(mode="json")`
+позволяет сериализовать результат для сохранения.
+
+Это статус попытки генерации. Сервис не меняет `raw_documents.status` и
+не удаляет документ. Модели и репозиторий БД ещё разрабатываются в задаче
+#13; их вызывающий код должен сохранять результат и отметку ошибки.
+`retryable` указывает на возможность повтора после временной ошибки или
+невалидного ответа; ошибки авторизации и неверного запроса требуют
+исправления настроек.
+
+Сетевые ошибки, таймауты, HTTP 429 и 5xx повторяются с экспоненциальной
+задержкой и учётом `Retry-After`. Остальные HTTP-ошибки не повторяются
+автоматически. Лимит учитывает и повторные, и параллельные запросы.
+Для серии генераций переиспользуйте один `DeepSeekClient`: лимит действует
+на его экземпляр, общий лимит нескольких процессов здесь не реализован.
+
 ### Тесты и линтер
 
 Установите зависимости разработки в созданное окружение. Из корня
@@ -193,9 +256,12 @@ ruff format --check .
 ```
 
 Настройки находятся в `backend/app/pyproject.toml`. Тесты используют
-FastAPI TestClient и проверяют реальный маршрут `/api/health`: статус
-`200` и JSON `{"status": "ok"}`. Для них не нужны `.env`, запущенный API,
-PostgreSQL или Redis.
+FastAPI TestClient для проверки маршрута `/api/health`: статус `200` и
+JSON `{"status": "ok"}`. Тесты DeepSeek используют `httpx.MockTransport`
+и искусственные часы: проверяют повторы, таймауты, ограничение частоты,
+валидацию паспорта и повторную обработку документа. Настоящие запросы
+к DeepSeek не выполняются. Для тестов не нужны ключ, `.env`, запущенный
+API, PostgreSQL или Redis.
 
 Ruff проверяет ошибки Python, стиль, порядок импортов и совместимость
 с Python 3.12. Исправление поддерживаемых замечаний и форматирование:
@@ -206,7 +272,7 @@ ruff format .
 ```
 
 В рабочем Docker-образе устанавливается только `requirements.txt`.
-`requirements-dev.txt` включает его и добавляет pytest, Ruff и HTTPX.
+`requirements-dev.txt` включает его и добавляет pytest и Ruff.
 
 ## Команда
 
