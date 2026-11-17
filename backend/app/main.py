@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-app = FastAPI(title="AI-Bank")
 
-@app.get("/api/health")
-def health():
-    return {"status": "ok"}
+from src.api.router import api_router
+
+app = FastAPI(title="AI-Bank")
+app.include_router(api_router)
