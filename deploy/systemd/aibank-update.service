@@ -5,4 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+User=aitask
+SupplementaryGroups=docker
+WorkingDirectory=/opt/aibank
 ExecStart=/bin/sh /opt/aibank/deploy/update.sh
