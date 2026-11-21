@@ -1,0 +1,11 @@
+[Unit]
+Description=Обновление AI-Bank (git pull + docker compose up)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=aitask
+SupplementaryGroups=docker
+WorkingDirectory=/opt/aibank
+ExecStart=/bin/sh /opt/aibank/deploy/update.sh
