@@ -2,7 +2,7 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
-from base_parser import BaseParser
+from parsers.base_parser import BaseParser
 
 @pytest.fixture
 def parser():
