@@ -1,0 +1,10 @@
+[Unit]
+Description=Бэкап базы AI-Bank (pg_dump)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=aitask
+SupplementaryGroups=docker
+ExecStart=/bin/sh /opt/aibank/deploy/backup.sh
