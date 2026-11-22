@@ -9,6 +9,7 @@ __pycache__/
 celerybeat-schedule*
 celerybeat.pid
 .ruff_cache/
+.artifacts/
 
 node_modules/
 dist/
