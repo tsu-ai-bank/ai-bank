@@ -1,0 +1,9 @@
+[Unit]
+Description=Каждую ночь делать бэкап базы AI-Bank
+
+[Timer]
+OnCalendar=*-*-* 03:00 Asia/Tomsk
+Persistent=true
+
+[Install]
+WantedBy=timers.target
