@@ -68,8 +68,10 @@ class TestMaskPhonePositive:
         assert parser.mask_personal_data("+7.999.123.45.67") == "[PHONE]"
 
     def test_phone_with_nonbreaking_space(self, parser):
-        assert parser.mask_personal_data("+7\u00a0999\u00a0123\u00a045\u00a067") == "[PHONE]"
-
+        assert (
+            parser.mask_personal_data("+7\u00a0999\u00a0123\u00a045\u00a067")
+            == "[PHONE]"
+        )
     def test_phone_with_unicode_dashes(self, parser):
         assert parser.mask_personal_data("+7 999 123\u201345\u201367") == "[PHONE]"
 
@@ -131,8 +133,10 @@ class TestMaskPhoneNegative:
         assert parser.mask_personal_data("в 2024 году") == "в 2024 году"
 
     def test_punctuation_around_phone_kept(self, parser):
-        assert parser.mask_personal_data("(тел. +7 999 123-45-67).") == "(тел. [PHONE])."
-
+        assert (
+            parser.mask_personal_data("(тел. +7 999 123-45-67).")
+            == "(тел. [PHONE])."
+        )
 
 class TestMaskPersonalDataMixed:
     def test_email_and_phone(self, parser):
