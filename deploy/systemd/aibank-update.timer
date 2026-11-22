@@ -1,0 +1,9 @@
+[Unit]
+Description=Раз в 5 минут проверять обновления AI-Bank
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
