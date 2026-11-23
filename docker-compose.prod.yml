@@ -7,3 +7,5 @@ services:
 
   nginx:
     restart: unless-stopped
+    ports: !override
+      - "80:80"
