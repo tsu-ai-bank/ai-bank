@@ -9,3 +9,10 @@ services:
     restart: unless-stopped
     ports: !override
       - "80:80"
+      - "443:443"
+    # тома склеиваются с базовым файлом по пути в контейнере:
+    # prod.d заменяет conf.d, остальные остаются
+    volumes:
+      - ./deploy/nginx/prod.d:/etc/nginx/conf.d:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
