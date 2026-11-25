@@ -1,7 +1,8 @@
 # Деплой и эксплуатация
 
 Прод — одна ВМ ТГУ (Ubuntu 24.04), проект в `/opt/aibank`, ветка `main`.
-Стек поднимается через Docker Compose: `api`, `postgres`, `redis`, `nginx` (порт 80).
+Стек поднимается через Docker Compose: `api`, `postgres`, `redis`, `nginx` (порты 80 и 443).
+Сайт: https://industry-tasks.tsu.ru/ (HTTP редиректит на HTTPS).
 
 Все команды ниже выполняются на сервере из `/opt/aibank`.
 Пользователь не в группе `docker`, поэтому через `sudo`.
@@ -32,11 +33,11 @@ journalctl -u aibank-update.service -n 50 --no-pager
 ## Проверить, что всё живо
 
 ```sh
-curl -s http://localhost/api/health
+curl -s https://industry-tasks.tsu.ru/api/health
 dc ps
 ```
 
-Снаружи: `http://92.63.67.24/api/health` → `ok`.
+Ожидается `{"status":"ok"}`. По `http://` теперь придёт редирект `301`.
 
 ## Логи
 
@@ -93,8 +94,33 @@ dc stop api
 dc exec -T postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner' \
   < /var/backups/aibank/daily/<файл>.dump
 dc start api
-curl -s http://localhost/api/health
+curl -s https://industry-tasks.tsu.ru/api/health
 ```
+
+## HTTPS-сертификат
+
+Сертификат Let's Encrypt выпускает `certbot` на хосте (способ webroot): кладёт проверочный файл
+в `/var/www/certbot`, nginx отдаёт его по `/.well-known/acme-challenge/`.
+Сертификат лежит в `/etc/letsencrypt/live/industry-tasks.tsu.ru/`, nginx монтирует `/etc/letsencrypt` только на чтение.
+
+Продление автоматическое: `certbot.timer` дважды в день, продлевает за 30 дней до конца срока.
+После продления хук `deploy/certbot-reload-nginx.sh` делает `nginx -s reload`.
+Хук подключён симлинком:
+
+```sh
+sudo ln -s /opt/aibank/deploy/certbot-reload-nginx.sh /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+```
+
+Проверить:
+
+```sh
+sudo certbot certificates                 # срок действия
+systemctl list-timers certbot.timer       # когда следующая проверка
+sudo certbot renew --dry-run              # продление вхолостую
+```
+
+Письма о проблемах с продлением приходят на почту аккаунта Let's Encrypt
+(сменить: `sudo certbot update_account --email <адрес>`).
 
 ## Известные проблемы
 
