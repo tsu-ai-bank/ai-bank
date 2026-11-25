@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ИИ-Банк индустриальных задач — ТГУ</title>
+  <meta name="description" content="Сервис ТГУ, который находит реальные задачи компаний и превращает их в учебные проекты для студентов.">
+  <style>
+    /* фирменный цвет ТГУ: tsu.ru/help/symbolism.php */
+    :root { --tsu-blue: #0072bc; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center;
+      background: var(--tsu-blue); color: #fff;
+      font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { width: 100%; max-width: 760px; margin: 0 auto; padding: 48px 16px; }
+    /* охранное поле логотипа — не меньше просвета в букве U, здесь с запасом */
+    .logo { display: block; width: 240px; max-width: 70%; height: auto; margin: 0 0 48px; }
+    .date {
+      display: inline-block; font-size: 14px; font-weight: 600; letter-spacing: .04em;
+      text-transform: uppercase; border: 1px solid rgba(255, 255, 255, .6);
+      border-radius: 999px; padding: 4px 14px;
+    }
+    h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.15; margin: 16px 0 12px; }
+    .lead { font-size: 19px; margin: 0; color: rgba(255, 255, 255, .9); }
+  </style>
+</head>
+<body>
+  <main>
+    <img class="logo" src="tsu-logo-white.svg" alt="Национальный исследовательский Томский государственный университет">
+    <span class="date">Апробация с 1 марта 2027</span>
+    <h1>ИИ-Банк индустриальных задач</h1>
+    <p class="lead">Сервис находит реальные задачи компаний и превращает их в учебные проекты для студентов ТГУ.</p>
+  </main>
+</body>
+</html>
