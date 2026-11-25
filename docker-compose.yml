@@ -59,6 +59,7 @@ services:
     volumes:
       - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
       - ./deploy/nginx/html:/usr/share/nginx/html:ro
+      - ./deploy/nginx/snippets:/etc/nginx/snippets:ro
     depends_on:
       - api
 
