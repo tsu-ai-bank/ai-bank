@@ -57,7 +57,8 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./deploy/nginx/html:/usr/share/nginx/html:ro
     depends_on:
       - api
 
