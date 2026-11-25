@@ -14,7 +14,7 @@ git pull --ff-only origin main
 compose up -d --remove-orphans
 
 # nginx читает конфиг только при старте — перечитать, если он поменялся
-if ! git diff --quiet "$before" HEAD -- deploy/nginx/conf.d; then
+if ! git diff --quiet "$before" HEAD -- deploy/nginx; then
     compose exec -T nginx nginx -s reload
 fi
 
