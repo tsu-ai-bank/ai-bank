@@ -1,0 +1,267 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2260" height="1350" viewBox="0 0 2260 1350" role="img" aria-labelledby="title desc">
+  <title id="title">Схема базы данных в нотации Баркера</title>
+  <desc id="desc">Семь сущностей базы данных и семь связей с обязательностью и кратностью.</desc>
+  <style>text{font-family:Arial,DejaVu Sans,sans-serif;fill:#000000}.head{font-size:23px;font-weight:700}.attr{font-size:19px}.edge{fill:none;stroke:#000000;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}.dashed{stroke-dasharray:10 9}.relation{font-size:18px;fill:#000000;font-weight:600}</style>
+  <rect x="0" y="0" width="2260" height="1350" fill="#ffffff" />
+  <g id="relations">
+    <polyline points="535,205 660,205" class="edge dashed" />
+    <polyline points="660,205 790,205" class="edge" />
+    <line x1="770" y1="191" x2="790" y2="205" class="edge" />
+    <line x1="770" y1="205" x2="790" y2="205" class="edge" />
+    <line x1="770" y1="219" x2="790" y2="205" class="edge" />
+    <rect x="612" y="169" width="96" height="30" rx="4" fill="#ffffff" />
+    <text x="660" y="191" text-anchor="middle" class="relation">имеет</text>
+    <polyline points="535,269 700,269 700,432" class="edge dashed" />
+    <polyline points="700,432 700,600 790,600" class="edge" />
+    <line x1="770" y1="586" x2="790" y2="600" class="edge" />
+    <line x1="770" y1="600" x2="790" y2="600" class="edge" />
+    <line x1="770" y1="614" x2="790" y2="600" class="edge" />
+    <rect x="662" y="413" width="96" height="30" rx="4" fill="#ffffff" />
+    <text x="710" y="435" text-anchor="middle" class="relation">имеет</text>
+    <polyline points="300,130 300,56 1090,56" class="edge dashed" />
+    <polyline points="1090,56 1915,56 1915,475" class="edge" />
+    <line x1="1901" y1="455" x2="1915" y2="475" class="edge" />
+    <line x1="1915" y1="455" x2="1915" y2="475" class="edge" />
+    <line x1="1929" y1="455" x2="1915" y2="475" class="edge" />
+    <rect x="1016" y="27" width="198" height="30" rx="4" fill="#ffffff" />
+    <text x="1115" y="49" text-anchor="middle" class="relation">получает паспорта</text>
+    <polyline points="535,620 670,620 670,795" class="edge dashed" />
+    <polyline points="670,795 670,970 790,970" class="edge" />
+    <line x1="770" y1="956" x2="790" y2="970" class="edge" />
+    <line x1="770" y1="970" x2="790" y2="970" class="edge" />
+    <line x1="770" y1="984" x2="790" y2="970" class="edge" />
+    <rect x="622" y="783" width="106" height="30" rx="4" fill="#ffffff" />
+    <text x="675" y="805" text-anchor="middle" class="relation">содержит</text>
+    <polyline points="535,1160 663,1160" class="edge dashed" />
+    <polyline points="663,1160 790,1160" class="edge dashed" />
+    <line x1="770" y1="1146" x2="790" y2="1160" class="edge dashed" />
+    <line x1="770" y1="1160" x2="790" y2="1160" class="edge dashed" />
+    <line x1="770" y1="1174" x2="790" y2="1160" class="edge dashed" />
+    <rect x="597" y="1124" width="127" height="30" rx="4" fill="#ffffff" />
+    <text x="660" y="1146" text-anchor="middle" class="relation">содержится</text>
+    <polyline points="1315,620 1475,620" class="edge dashed" />
+    <polyline points="1475,620 1640,620" class="edge dashed" />
+    <line x1="1620" y1="606" x2="1640" y2="620" class="edge dashed" />
+    <line x1="1620" y1="620" x2="1640" y2="620" class="edge dashed" />
+    <line x1="1620" y1="634" x2="1640" y2="620" class="edge dashed" />
+    <rect x="1417" y="583" width="116" height="30" rx="4" fill="#ffffff" />
+    <text x="1475" y="605" text-anchor="middle" class="relation">проверяет</text>
+    <polyline points="1315,1110 1480,1110 1480,925" class="edge dashed" />
+    <polyline points="1480,925 1480,745 1640,745" class="edge" />
+    <line x1="1620" y1="731" x2="1640" y2="745" class="edge" />
+    <line x1="1620" y1="745" x2="1640" y2="745" class="edge" />
+    <line x1="1620" y1="759" x2="1640" y2="745" class="edge" />
+    <rect x="1432" y="901" width="96" height="30" rx="4" fill="#ffffff" />
+    <text x="1480" y="923" text-anchor="middle" class="relation">создает</text>
+  </g>
+  <g id="entities">
+    <g id="faculties">
+      <rect x="70" y="130" width="465" height="178" rx="18" fill="#ffffff" stroke="#000000" stroke-width="2.2" />
+      <line x1="70" y1="183" x2="535" y2="183" stroke="#000000" stroke-width="1.8" />
+      <text x="92" y="165" class="head">faculties</text>
+      <text x="95" y="213" class="attr">
+        <tspan font-weight="700">#</tspan>
+        <tspan dx="10">id</tspan>
+      </text>
+      <text x="95" y="241" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">code</tspan>
+      </text>
+      <text x="95" y="269" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">name</tspan>
+      </text>
+    </g>
+    <g id="sources">
+      <rect x="70" y="555" width="465" height="178" rx="18" fill="#ffffff" stroke="#000000" stroke-width="2.2" />
+      <line x1="70" y1="608" x2="535" y2="608" stroke="#000000" stroke-width="1.8" />
+      <text x="92" y="590" class="head">sources</text>
+      <text x="95" y="638" class="attr">
+        <tspan font-weight="700">#</tspan>
+        <tspan dx="10">id</tspan>
+      </text>
+      <text x="95" y="666" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">domain</tspan>
+      </text>
+      <text x="95" y="694" class="attr">
+        <tspan font-weight="700">○</tspan>
+        <tspan dx="10">name</tspan>
+      </text>
+    </g>
+    <g id="organizations">
+      <rect x="70" y="1080" width="465" height="178" rx="18" fill="#ffffff" stroke="#000000" stroke-width="2.2" />
+      <line x1="70" y1="1133" x2="535" y2="1133" stroke="#000000" stroke-width="1.8" />
+      <text x="92" y="1115" class="head">organizations</text>
+      <text x="95" y="1163" class="attr">
+        <tspan font-weight="700">#</tspan>
+        <tspan dx="10">id</tspan>
+      </text>
+      <text x="95" y="1191" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">name</tspan>
+      </text>
+      <text x="95" y="1219" class="attr">
+        <tspan font-weight="700">○</tspan>
+        <tspan dx="10">inn</tspan>
+      </text>
+    </g>
+    <g id="faculty_competencies">
+      <rect x="790" y="130" width="525" height="234" rx="18" fill="#ffffff" stroke="#000000" stroke-width="2.2" />
+      <line x1="790" y1="183" x2="1315" y2="183" stroke="#000000" stroke-width="1.8" />
+      <text x="812" y="165" class="head">faculty_competencies</text>
+      <text x="815" y="213" class="attr">
+        <tspan font-weight="700">#</tspan>
+        <tspan dx="10">id</tspan>
+      </text>
+      <text x="815" y="241" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">faculty_id  (FK)</tspan>
+      </text>
+      <text x="815" y="269" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">code</tspan>
+      </text>
+      <text x="815" y="297" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">name</tspan>
+      </text>
+      <text x="815" y="325" class="attr">
+        <tspan font-weight="700">○</tspan>
+        <tspan dx="10">description</tspan>
+      </text>
+    </g>
+    <g id="moderators">
+      <rect x="790" y="480" width="525" height="290" rx="18" fill="#ffffff" stroke="#000000" stroke-width="2.2" />
+      <line x1="790" y1="533" x2="1315" y2="533" stroke="#000000" stroke-width="1.8" />
+      <text x="812" y="515" class="head">moderators</text>
+      <text x="815" y="563" class="attr">
+        <tspan font-weight="700">#</tspan>
+        <tspan dx="10">id</tspan>
+      </text>
+      <text x="815" y="591" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">faculty_id  (FK)</tspan>
+      </text>
+      <text x="815" y="619" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">login</tspan>
+      </text>
+      <text x="815" y="647" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">password_hash</tspan>
+      </text>
+      <text x="815" y="675" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">role</tspan>
+      </text>
+      <text x="815" y="703" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">is_active</tspan>
+      </text>
+      <text x="815" y="731" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">created_at</tspan>
+      </text>
+    </g>
+    <g id="raw_documents">
+      <rect x="790" y="870" width="525" height="402" rx="18" fill="#ffffff" stroke="#000000" stroke-width="2.2" />
+      <line x1="790" y1="923" x2="1315" y2="923" stroke="#000000" stroke-width="1.8" />
+      <text x="812" y="905" class="head">raw_documents</text>
+      <text x="815" y="953" class="attr">
+        <tspan font-weight="700">#</tspan>
+        <tspan dx="10">id</tspan>
+      </text>
+      <text x="815" y="981" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">source_id  (FK)</tspan>
+      </text>
+      <text x="815" y="1009" class="attr">
+        <tspan font-weight="700">○</tspan>
+        <tspan dx="10">organization_id  (FK)</tspan>
+      </text>
+      <text x="815" y="1037" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">url</tspan>
+      </text>
+      <text x="815" y="1065" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">title</tspan>
+      </text>
+      <text x="815" y="1093" class="attr">
+        <tspan font-weight="700">○</tspan>
+        <tspan dx="10">description</tspan>
+      </text>
+      <text x="815" y="1121" class="attr">
+        <tspan font-weight="700">○</tspan>
+        <tspan dx="10">published_at</tspan>
+      </text>
+      <text x="815" y="1149" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">collected_at</tspan>
+      </text>
+      <text x="815" y="1177" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">text</tspan>
+      </text>
+      <text x="815" y="1205" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">status</tspan>
+      </text>
+      <text x="815" y="1233" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">updated_at</tspan>
+      </text>
+    </g>
+    <g id="project_passports">
+      <rect x="1640" y="475" width="555" height="402" rx="18" fill="#ffffff" stroke="#000000" stroke-width="2.2" />
+      <line x1="1640" y1="528" x2="2195" y2="528" stroke="#000000" stroke-width="1.8" />
+      <text x="1662" y="510" class="head">project_passports</text>
+      <text x="1665" y="558" class="attr">
+        <tspan font-weight="700">#</tspan>
+        <tspan dx="10">id</tspan>
+      </text>
+      <text x="1665" y="586" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">raw_document_id  (FK)</tspan>
+      </text>
+      <text x="1665" y="614" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">faculty_id  (FK)</tspan>
+      </text>
+      <text x="1665" y="642" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">title</tspan>
+      </text>
+      <text x="1665" y="670" class="attr">
+        <tspan font-weight="700">○</tspan>
+        <tspan dx="10">recommended_course</tspan>
+      </text>
+      <text x="1665" y="698" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">passport_data</tspan>
+      </text>
+      <text x="1665" y="726" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">moderation_status</tspan>
+      </text>
+      <text x="1665" y="754" class="attr">
+        <tspan font-weight="700">○</tspan>
+        <tspan dx="10">moderated_by_id  (FK)</tspan>
+      </text>
+      <text x="1665" y="782" class="attr">
+        <tspan font-weight="700">○</tspan>
+        <tspan dx="10">moderated_at</tspan>
+      </text>
+      <text x="1665" y="810" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">created_at</tspan>
+      </text>
+      <text x="1665" y="838" class="attr">
+        <tspan font-weight="700">*</tspan>
+        <tspan dx="10">updated_at</tspan>
+      </text>
+    </g>
+  </g>
+</svg>
